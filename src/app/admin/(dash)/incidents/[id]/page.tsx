@@ -52,7 +52,7 @@ export default async function IncidentDetailPage({
     "use server";
     const admin = await requireApiAdmin();
     if (!admin || admin.role !== "ADMIN") redirect("/admin");
-    await prisma.incident.delete({ where: { id: incident.id } }).catch(() => {});
+    await prisma.incident.delete({ where: { id: params.id } }).catch(() => {});
     redirect("/admin");
   }
 
