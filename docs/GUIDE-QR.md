@@ -78,8 +78,8 @@ même salle créent des signalements contradictoires.
 
 ## 5. Ajout d'une nouvelle salle / d'un nouvel équipement
 
-1. Créer la salle (avec son **code stable**) et ses équipements en base
-   (via un script, `prisma studio` ou le seed).
+1. Créer la salle (avec son **code stable**) et ses équipements depuis
+   **Admin → Salles & équipements** (`/admin/referentiel`).
 2. Régénérer la feuille depuis **Admin → Étiquettes QR** et vérifier que la
    nouvelle salle apparaît.
 3. Imprimer, poser, vérifier (check-list ci-dessus).

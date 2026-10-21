@@ -86,6 +86,10 @@ model Incident {
   updatedAt      DateTime   @updatedAt
   resolvedAt     DateTime?
   closedAt       DateTime?
+
+  // Satisfaction du déclarant (v2.1) : +1 (👍 résolu pour moi) | -1 (👎 toujours gênant)
+  satisfaction   Int?
+  feedbackAt     DateTime?
 }
 
 model Photo {

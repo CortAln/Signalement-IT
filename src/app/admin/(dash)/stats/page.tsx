@@ -1,4 +1,4 @@
-import { CATEGORIES } from "@/lib/data";
+import { CATEGORIES, isOverdue } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 
 export const metadata = { title: "Statistiques — Console IT" };
@@ -116,25 +116,52 @@ export default async function StatsPage() {
     (i) => i.status === "NOUVEAU" || i.status === "EN_COURS"
   ).length;
 
+  // v2.1 : retards SLA et satisfaction des déclarants
+  const overdue = incidents.filter((i) => isOverdue(i)).length;
+  const votes = incidents.filter((i) => i.satisfaction !== null);
+  const upVotes = votes.filter((i) => i.satisfaction === 1).length;
+  const satisfactionPct = votes.length
+    ? `${Math.round((upVotes / votes.length) * 100)} %`
+    : "—";
+
   return (
     <>
       <h1 className="mb-6 text-2xl font-bold">Statistiques</h1>
 
       {/* Indicateurs clés */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Incidents (total)", value: incidents.length },
-          { label: "Ouverts", value: open },
-          { label: "Résolus", value: resolved.length },
-          { label: "MTTR", value: mttrLabel },
-        ].map((k) => (
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        {(
+          [
+            { label: "Incidents (total)", value: String(incidents.length) },
+            { label: "Ouverts", value: String(open) },
+            { label: "Résolus", value: String(resolved.length) },
+            { label: "MTTR", value: mttrLabel },
+            {
+              label: "En retard (SLA)",
+              value: String(overdue),
+              warn: overdue > 0,
+            },
+            {
+              label: "Satisfaction",
+              value: satisfactionPct,
+              sub: votes.length ? `${votes.length} vote(s)` : "aucun vote",
+            },
+          ] as { label: string; value: string; warn?: boolean; sub?: string }[]
+        ).map((k) => (
           <div key={k.label} className="rounded-xl bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {k.label}
             </p>
-            <p className="mt-1 text-2xl font-bold text-primary-dark">
+            <p
+              className={`mt-1 text-2xl font-bold ${
+                k.warn ? "text-red-600" : "text-primary-dark"
+              }`}
+            >
               {k.value}
             </p>
+            {"sub" in k && k.sub && (
+              <p className="text-xs text-slate-500">{k.sub}</p>
+            )}
           </div>
         ))}
       </div>

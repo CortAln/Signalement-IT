@@ -4,6 +4,7 @@ import {
   categoryLabel,
   criticalityIcon,
   criticalityLabel,
+  isOverdue,
   subIssueLabel,
 } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
@@ -131,6 +132,14 @@ export default async function AdminIncidentsPage({
                       >
                         {st?.label ?? i.status}
                       </span>
+                      {isOverdue(i) && (
+                        <span
+                          title="Délai cible dépassé pour cette criticité"
+                          className="ml-1 inline-block whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800"
+                        >
+                          ⏰ En retard
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       <span title={criticalityLabel(i.criticality)}>

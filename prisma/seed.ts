@@ -107,6 +107,7 @@ async function main() {
     created: Date; resolveAfter?: number; closeAfter?: number;
     reporter?: [string, string, string?]; // nom, email, poste
     assigned?: number; comments?: [number, string, boolean][]; // adminIndex, texte, interne
+    satisfaction?: 1 | -1; // avis du déclarant après résolution (v2.1)
   };
 
   const seeds: Seed[] = [
@@ -119,19 +120,19 @@ async function main() {
     { room: "ACCUEIL", eq: "TEL-ACCUEIL-01", category: "TELEPHONIE", subIssue: "pas_de_tonalite", description: "Le téléphone de l'accueil n'a plus de tonalité.", criticality: "BLOQUANT", status: "EN_COURS", created: daysAgo(2, 10), assigned: 2, reporter: ["Anonyme", "", "P-001"] },
 
     // ── Incidents de la semaine dernière ──
-    { room: "OSA2A", eq: "PC-OSA2A-02", category: "ORDINATEUR", subIssue: "tres_lent", description: "Le poste 02 met 10 minutes à démarrer.", criticality: "GENANT", status: "RESOLU", created: daysAgo(8), resolveAfter: 20, closeAfter: 44, assigned: 1, reporter: ["Marc Le Goff", "m.legoff@exemple.fr", "P-202"], comments: [[1, "SSD en fin de vie, remplacé. Poste comme neuf !", false]] },
+    { room: "OSA2A", eq: "PC-OSA2A-02", category: "ORDINATEUR", subIssue: "tres_lent", description: "Le poste 02 met 10 minutes à démarrer.", criticality: "GENANT", status: "RESOLU", created: daysAgo(8), resolveAfter: 20, closeAfter: 44, assigned: 1, reporter: ["Marc Le Goff", "m.legoff@exemple.fr", "P-202"], satisfaction: 1, comments: [[1, "SSD en fin de vie, remplacé. Poste comme neuf !", false]] },
     { room: "ORION", eq: "TEL-ORION-01", category: "TELEPHONIE", subIssue: "son_coupe", description: "Le son coupe aléatoirement en visio depuis l'upgrade.", criticality: "GENANT", status: "RESOLU", created: daysAgo(9), resolveAfter: 30, assigned: 2 },
-    { room: "BASTIDE", eq: "PC-BASTIDE-01", category: "LOGICIEL", subIssue: "acces_refuse", description: "Erreur « accès refusé » au logiciel de gestion à chaque ouverture de session.", criticality: "BLOQUANT", status: "RESOLU", created: daysAgo(10), resolveAfter: 5, closeAfter: 50, assigned: 0, comments: [[0, "Groupe AD erroné, corrigé en 5 min.", false]] },
+    { room: "BASTIDE", eq: "PC-BASTIDE-01", category: "LOGICIEL", subIssue: "acces_refuse", description: "Erreur « accès refusé » au logiciel de gestion à chaque ouverture de session.", criticality: "BLOQUANT", status: "RESOLU", created: daysAgo(10), resolveAfter: 5, closeAfter: 50, assigned: 0, satisfaction: 1, comments: [[0, "Groupe AD erroné, corrigé en 5 min.", false]] },
     { room: "VEGA", eq: "VIDEOPROJ-VEGA-01", category: "VIDEOPROJ", subIssue: "telecommande", description: "La télécommande du vidéoprojecteur mobile a disparu.", criticality: "MINEUR", status: "EN_COURS", created: daysAgo(12), assigned: 1 },
     { room: "ACCUEIL", category: "ELECTRICITE", subIssue: "prise_hs", description: "La prise de la borne d'accueil ne fournit plus de courant.", criticality: "GENANT", status: "RESOLU", created: daysAgo(11), resolveAfter: 26, closeAfter: 70, assigned: 2 },
     { room: "ATELIER", eq: "PC-ATELIER-01", category: "ORDINATEUR", subIssue: "ne_demarre_pas", description: "Le poste CAO ne démarre plus du tout, aucun voyant.", criticality: "BLOQUANT", status: "RESOLU", created: daysAgo(13), resolveAfter: 4, assigned: 1, comments: [[1, "Alimentation HS, échange standard effectué.", false], [1, "Facture fournisseur à joindre au dossier.", true]] },
     { room: "OSA2A", eq: "IMPR-OSA2A-01", category: "IMPRIMANTE", subIssue: "cartouches", description: "Toner noir à remplacer sur la multifonction.", criticality: "MINEUR", status: "FERME", created: daysAgo(15), resolveAfter: 3, closeAfter: 30, assigned: 2, comments: [[2, "Toner changé, merci du signalement.", false]] },
-    { room: "OSA2A", eq: "ECR-OSA2A-02", category: "ECRAN", subIssue: "oscintillement", description: "L'écran du poste 02 clignote par intermittence.", criticality: "GENANT", status: "FERME", created: daysAgo(16), resolveAfter: 27, closeAfter: 96, assigned: 1, reporter: ["Sophie Nguyen", "s.nguyen@exemple.fr", "P-203"] },
+    { room: "OSA2A", eq: "ECR-OSA2A-02", category: "ECRAN", subIssue: "oscintillement", description: "L'écran du poste 02 clignote par intermittence.", criticality: "GENANT", status: "FERME", created: daysAgo(16), resolveAfter: 27, closeAfter: 96, assigned: 1, reporter: ["Sophie Nguyen", "s.nguyen@exemple.fr", "P-203"], satisfaction: -1 },
     { room: "ORION", eq: "PC-ORION-01", category: "ORDINATEUR", subIssue: "plante", description: "Le PC de la salle Orion redémarre tout seul toutes les heures.", criticality: "BLOQUANT", status: "FERME", created: daysAgo(18), resolveAfter: 8, closeAfter: 60, assigned: 0 },
 
     // ── Semaine -3 ──
     { room: "BASTIDE", eq: "ECR-BASTIDE-01", category: "ECRAN", subIssue: "cable_endommage", description: "Câble DisplayPort pincé par le bras de l'écran, connexion instable.", criticality: "MINEUR", status: "FERME", created: daysAgo(22), resolveAfter: 48, closeAfter: 120, assigned: 1 },
-    { room: "VEGA", category: "RESEAU", subIssue: "connexion_lente", description: "Débits très faibles en visio dans toute la salle Vega.", criticality: "GENANT", status: "FERME", created: daysAgo(23), resolveAfter: 10, closeAfter: 72, assigned: 0, comments: [[0, "Mauvais réglage QoS sur le switch de l'étage, corrigé.", false]] },
+    { room: "VEGA", category: "RESEAU", subIssue: "connexion_lente", description: "Débits très faibles en visio dans toute la salle Vega.", criticality: "GENANT", status: "FERME", created: daysAgo(23), resolveAfter: 10, closeAfter: 72, assigned: 0, satisfaction: 1, comments: [[0, "Mauvais réglage QoS sur le switch de l'étage, corrigé.", false]] },
     { room: "ATELIER", eq: "SCAN-ATELIER-01", category: "IMPRIMANTE", subIssue: "scan_bloque", description: "Le scanner 3D se bloque à 30 % de la numérisation.", criticality: "GENANT", status: "FERME", created: daysAgo(25), resolveAfter: 40, closeAfter: 100, assigned: 2 },
     { room: "ACCUEIL", category: "AUTRE", subIssue: "autre", description: "La borne d'accueil est décalée, l'écran bouge quand on la touche.", criticality: "MINEUR", status: "FERME", created: daysAgo(26), resolveAfter: 22, closeAfter: 80 },
 
@@ -170,6 +171,8 @@ async function main() {
         updatedAt: closedAt ?? resolvedAt ?? s.created,
         resolvedAt,
         closedAt: s.status === "FERME" ? closedAt : null,
+        satisfaction: s.satisfaction ?? null,
+        feedbackAt: s.satisfaction ? (closedAt ?? resolvedAt ?? null) : null,
         comments: s.comments
           ? {
               create: s.comments.map(([adminIdx, body, internal]) => ({

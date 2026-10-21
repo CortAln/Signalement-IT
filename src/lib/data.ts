@@ -239,3 +239,22 @@ export function friendlyMessage(status: string): string {
       return "";
   }
 }
+
+// ── Délais de traitement cibles (SLA light, v2.1) ─────────────────
+// En heures calendaires. Un incident ouvert au-delà de son délai cible
+// est marqué « en retard » dans la console et les statistiques.
+export const SLA_HOURS: Record<string, number> = {
+  BLOQUANT: 24,
+  GENANT: 72,
+  MINEUR: 168, // 1 semaine
+};
+
+export function isOverdue(incident: {
+  status: string;
+  criticality: string;
+  createdAt: Date;
+}): boolean {
+  if (incident.status === "RESOLU" || incident.status === "FERME") return false;
+  const hours = SLA_HOURS[incident.criticality] ?? SLA_HOURS.MINEUR;
+  return Date.now() - incident.createdAt.getTime() > hours * 3600 * 1000;
+}

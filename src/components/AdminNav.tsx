@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/admin/carte", label: "Carte des salles" },
   { href: "/admin/stats", label: "Statistiques" },
   { href: "/admin/qr", label: "Étiquettes QR" },
+  { href: "/admin/referentiel", label: "Salles & équipements" },
 ];
 
 export default function AdminNav({ adminName }: { adminName: string }) {

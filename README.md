@@ -5,6 +5,21 @@ Mini-application web de **signalement d'incidents IT**, pensée
 Chaque utilisateur signale en moins de 30 secondes en scannant un QR code
 collé sur son poste, ou via une URL courte.
 
+## 🆕 v2.1 — Pilotage & référentiel
+
+- **Salles & équipements gérés depuis la console** (`/admin/referentiel`) :
+  création, renommage, suppression — sans toucher au seed. Les codes sont
+  figés après création (encodés dans les QR imprimés) ; une salle avec
+  incidents ne peut pas être supprimée.
+- **Retards SLA** : délai cible par criticité (🔴 24 h, 🟠 72 h, 🟡 7 j) ;
+  badge « ⏰ En retard » dans la liste et KPI dédié dans les statistiques.
+- **Satisfaction du déclarant** : boutons 👍/👎 sur la page de suivi dès que
+  le ticket est résolu ; taux de satisfaction dans les statistiques.
+- **Sonde `/api/health`** : `{ ok, db, ts }` pour le monitoring de
+  disponibilité (renvoie 503 si la base ne répond pas).
+- Passage à la v2.1 : `npm run db:push` suffit (deux champs ajoutés à
+  `Incident` : `satisfaction`, `feedbackAt` — aucune perte de données).
+
 ## ✨ Fonctionnalités
 
 **Côté utilisateur (public, sans compte)**
@@ -30,6 +45,8 @@ collé sur son poste, ou via une URL courte.
   répartition par catégorie.
 - **Générateur d'étiquettes QR** imprimables (une feuille A4 par salle) —
   voir [`docs/GUIDE-QR.md`](docs/GUIDE-QR.md).
+- **Référentiel salles & équipements** : gestion complète depuis la console
+  (v2.1), sans toucher au seed.
 - Notifications **email + webhook Teams/Slack** à chaque incident,
   filtrables par criticité.
 

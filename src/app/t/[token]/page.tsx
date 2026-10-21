@@ -10,6 +10,7 @@ import {
   STATUS_MAP,
   subIssueLabel,
 } from "@/lib/data";
+import FeedbackButtons from "@/components/FeedbackButtons";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -168,6 +169,11 @@ export default async function TrackingPage({
           </ul>
         )}
       </section>
+
+      {/* Avis du déclarant (v2.1) — visible dès que le ticket est résolu */}
+      {(incident.status === "RESOLU" || incident.status === "FERME") && (
+        <FeedbackButtons token={incident.token} satisfaction={incident.satisfaction} />
+      )}
 
       <footer className="mt-10 text-center text-sm">
         <p className="text-slate-500">
