@@ -218,6 +218,11 @@ export function categoryLabel(key: string): string {
   return CATEGORY_MAP[key]?.label ?? key;
 }
 
+/** Icône d'une catégorie (retourne ❓ si inconnue). */
+export function categoryIcon(key: string): string {
+  return CATEGORY_MAP[key]?.icon ?? "❓";
+}
+
 /** Libellé lisible d'une sous-question (retourne la clé si inconnue). */
 export function subIssueLabel(categoryKey: string, subKey: string | null): string | null {
   if (!subKey) return null;

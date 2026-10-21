@@ -75,7 +75,15 @@ Identifiants de démonstration (créés par le seed) :
 
 ⚠️ À changer absolument avant toute mise en production.
 
-## 🏭 Production (PostgreSQL)
+## 🏭 Production
+
+### Azure Web App
+
+Déploiement GitHub Actions clé en main : voir
+[`docs/DEPLOIEMENT-AZURE.md`](docs/DEPLOIEMENT-AZURE.md)
+(workflow fourni dans `.github/workflows/deploy-azure.yml`).
+
+### PostgreSQL local / autre hébergeur
 
 1. Dans `prisma/schema.prisma` : `provider = "postgresql"`.
 2. `DATABASE_URL="postgresql://user:pass@host:5432/signalement_it"`.
