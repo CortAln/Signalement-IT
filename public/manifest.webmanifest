@@ -1,0 +1,18 @@
+{
+  "name": "Signalement IT",
+  "short_name": "Signalement IT",
+  "description": "Signalez en moins de 30 secondes un problème IT ou matériel.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

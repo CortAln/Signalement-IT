@@ -1,0 +1,117 @@
+// Schéma Prisma — SQLite en développement.
+// Pour PostgreSQL en production : remplacer `provider = "sqlite"` par
+// `provider = "postgresql"` et pointer DATABASE_URL vers Postgres.
+// (Les enums ne sont pas supportés par SQLite : les statuts/criticités
+//  sont stockés en String avec des valeurs contrôlées côté applicatif.)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Lieux ─────────────────────────────────────────────────────────
+
+model Room {
+  id        String     @id @default(cuid())
+  code      String     @unique // code court utilisé dans les URL QR : ?salle=BASTIDE
+  name      String // libellé affiché : "Salle Bastide"
+  building  String?
+  floor     String?
+  createdAt DateTime   @default(now())
+  equipment Equipment[]
+  incidents Incident[]
+}
+
+model Equipment {
+  id        String     @id @default(cuid())
+  code      String     @unique // ex. ECR-BASTIDE-01
+  name      String // ex. "Écran poste 01"
+  type      String // ECRAN | PC | IMPRIMANTE | RESEAU | TELEPHONIE | VIDEOPROJ | LOGICIEL | ELECTRICITE | AUTRE
+  roomId    String
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  incidents Incident[]
+  createdAt DateTime   @default(now())
+}
+
+// ─── Administration (accès protégé) ────────────────────────────────
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         String    @default("TECHNICIEN") // ADMIN | TECHNICIEN
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+  assigned     Incident[] @relation("AssignedTo")
+  comments     Comment[]  @relation("AdminComments")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  adminId   String
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
+
+// ─── Incidents ─────────────────────────────────────────────────────
+
+model Incident {
+  id             String     @id @default(cuid())
+  ticketNumber   String     @unique // INC-2026-0142
+  token          String     @unique // jeton de suivi public /t/<token>
+  status         String     @default("NOUVEAU") // NOUVEAU | EN_COURS | RESOLU | FERME
+  criticality    String // BLOQUANT | GENANT | MINEUR
+  category       String // clé de catégorie (voir src/lib/data.ts)
+  subIssue       String? // sous-question sélectionnée
+  description    String?
+  reporterName   String? // optionnel (signalement anonyme possible)
+  reporterEmail  String?
+  workstationRef String? // numéro de poste / badge, optionnel
+  roomId         String
+  room           Room       @relation(fields: [roomId], references: [id])
+  equipmentId    String?
+  equipment      Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  assignedToId   String?
+  assignedTo     AdminUser?  @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  photos         Photo[]
+  comments       Comment[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+}
+
+model Photo {
+  id         String   @id @default(cuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  data       String // base64 (pour la prod : stockage objet S3/MinIO recommandé)
+  mime       String
+  createdAt  DateTime @default(now())
+}
+
+model Comment {
+  id         String     @id @default(cuid())
+  incidentId String
+  incident   Incident   @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  authorType String // SUPPORT | UTILISATEUR
+  authorName String
+  adminId    String?
+  admin      AdminUser? @relation("AdminComments", fields: [adminId], references: [id], onDelete: SetNull)
+  body       String
+  internal   Boolean    @default(false) // commentaire interne : visible admin uniquement
+  createdAt  DateTime   @default(now())
+}
+
+// Compteur de tickets par année (INC-<année>-<séquence>)
+model TicketCounter {
+  year Int @id
+  seq  Int @default(0)
+}
