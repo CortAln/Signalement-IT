@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { notifyAssignment, notifyRequester } from "@/lib/notify";
+import type { IncidentWithRefs } from "@/lib/notify";
 import {
   PRIORITY_MAP,
   TICKET_TYPE_MAP,
@@ -23,18 +24,6 @@ const TRANSITIONS: Record<string, string[]> = {
   EN_ATTENTE: ["EN_COURS", "RESOLU", "FERME"],
   RESOLU: ["FERME", "EN_COURS", "EN_ATTENTE"],
   FERME: ["EN_COURS"],
-};
-
-type IncidentWithRefs = {
-  id: string;
-  ticketNumber: string;
-  token: string;
-  status: string;
-  reporterEmail: string | null;
-  resolvedAt: Date | null;
-} & {
-  room: { name: string };
-  equipment: { name: string } | null;
 };
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {

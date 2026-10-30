@@ -2,7 +2,7 @@ import { categoryLabel, criticalityIcon, criticalityLabel } from "@/lib/data";
 import type { Incident, Room, Equipment } from "@prisma/client";
 import nodemailer from "nodemailer";
 
-type IncidentWithRefs = Incident & {
+export type IncidentWithRefs = Incident & {
   room: Room;
   equipment: Equipment | null;
 };
