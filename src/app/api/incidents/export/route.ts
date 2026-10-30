@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { requireApiAdmin } from "@/lib/auth";
-import { criticalityLabel, statusLabel, categoryLabel, subIssueLabel } from "@/lib/data";
+import {
+  criticalityLabel,
+  statusLabel,
+  categoryLabel,
+  subIssueLabel,
+  priorityLabel,
+  ticketTypeLabel,
+} from "@/lib/data";
 
 /**
  * GET /api/incidents/export — export CSV complet (réservé admin).
@@ -24,7 +31,9 @@ export async function GET(req: Request) {
 
   const header = [
     "Numéro",
+    "Type",
     "Statut",
+    "Priorité",
     "Criticité",
     "Catégorie",
     "Sous-question",
@@ -35,15 +44,23 @@ export async function GET(req: Request) {
     "Signalé par",
     "Email",
     "Référence poste/badge",
+    "Tags",
+    "Temps passé (min)",
+    "Escaladé",
+    "Échéance SLA",
+    "Première réponse",
     "Créé le",
     "Résolu le",
     "Fermé le",
+    "Note de résolution",
   ];
 
   const rows = incidents.map((i) =>
     [
       i.ticketNumber,
+      ticketTypeLabel(i.type),
       statusLabel(i.status),
+      priorityLabel(i.priority),
       criticalityLabel(i.criticality),
       categoryLabel(i.category),
       subIssueLabel(i.category, i.subIssue),
@@ -54,9 +71,15 @@ export async function GET(req: Request) {
       i.reporterName,
       i.reporterEmail,
       i.workstationRef,
+      i.tags,
+      i.timeSpent,
+      i.escalated ? "Oui" : "Non",
+      i.dueAt?.toISOString() ?? "",
+      i.firstResponseAt?.toISOString() ?? "",
       i.createdAt.toISOString(),
       i.resolvedAt?.toISOString() ?? "",
       i.closedAt?.toISOString() ?? "",
+      i.resolutionNote,
     ]
       .map(csvCell)
       .join(";")

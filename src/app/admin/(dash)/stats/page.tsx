@@ -113,7 +113,16 @@ export default async function StatsPage() {
   const topEquipment = top5(eqMap);
 
   const open = incidents.filter(
-    (i) => i.status === "NOUVEAU" || i.status === "EN_COURS"
+    (i) =>
+      i.status === "NOUVEAU" ||
+      i.status === "EN_COURS" ||
+      i.status === "EN_ATTENTE"
+  ).length;
+
+  // v3 : priorités, temps passé et conformité SLA
+  const totalTime = incidents.reduce((acc, i) => acc + i.timeSpent, 0);
+  const dueSoon = incidents.filter(
+    (i) => i.dueAt && i.status !== "RESOLU" && i.status !== "FERME" && i.dueAt.getTime() > Date.now()
   ).length;
 
   // v2.1 : retards SLA et satisfaction des déclarants
@@ -218,6 +227,33 @@ export default async function StatsPage() {
           {topEquipment.map((e) => (
             <Bar key={e.label} label={e.label} value={e.count} max={topEquipment[0]?.count ?? 1} />
           ))}
+        </section>
+
+        <section
+          aria-labelledby="st-priorites"
+          className="rounded-xl bg-white p-5 shadow-sm"
+        >
+          <h2 id="st-priorites" className="mb-3 font-semibold">
+            🎚️ Répartition par priorité
+          </h2>
+          {(["P1", "P2", "P3", "P4"] as const).map((p) => (
+            <Bar
+              key={p}
+              label={p}
+              value={incidents.filter((i) => i.priority === p).length}
+              max={Math.max(
+                ...(["P1", "P2", "P3", "P4"] as const).map(
+                  (x) => incidents.filter((i) => i.priority === x).length
+                ),
+                1
+              )}
+            />
+          ))}
+          <p className="mt-3 text-xs text-slate-500">
+            ⏱️ Temps cumulé saisi par les agents :{" "}
+            {Math.floor(totalTime / 60)} h {totalTime % 60} min · {dueSoon} ticket(s)
+            à échéance SLA imminente ou passée (ouverts).
+          </p>
         </section>
       </div>
 

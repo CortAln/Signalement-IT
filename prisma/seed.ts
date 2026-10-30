@@ -26,6 +26,8 @@ async function main() {
   await prisma.adminUser.deleteMany();
   await prisma.session.deleteMany();
   await prisma.ticketCounter.deleteMany();
+  await prisma.knowledgeArticle.deleteMany();
+  await prisma.activityLog.deleteMany();
 
   console.log("🌱 Salles et équipements…");
   const roomDefs = [
@@ -101,9 +103,16 @@ async function main() {
   ]);
 
   console.log("🌱 Incidents de démonstration…");
+  const PRIORITY_BY_CRIT: Record<string, string> = {
+    BLOQUANT: "P1",
+    GENANT: "P2",
+    MINEUR: "P3",
+  };
+  const SLA_BY_PRIO: Record<string, number> = { P1: 8, P2: 24, P3: 72, P4: 168 };
   type Seed = {
     room: string; eq?: string; category: string; subIssue: string;
     description?: string; criticality: string; status: string;
+    type?: string; tags?: string; timeSpent?: number; escalated?: boolean;
     created: Date; resolveAfter?: number; closeAfter?: number;
     reporter?: [string, string, string?]; // nom, email, poste
     assigned?: number; comments?: [number, string, boolean][]; // adminIndex, texte, interne
@@ -113,11 +122,15 @@ async function main() {
   const seeds: Seed[] = [
     // ── Incidents récents (ouverts) ──
     { room: "OSA2A", eq: "ECR-OSA2A-01", category: "ECRAN", subIssue: "ecran_noir", description: "L'écran du poste 01 reste noir depuis ce matin, le voyant clignote.", criticality: "BLOQUANT", status: "NOUVEAU", created: daysAgo(0, 8), reporter: ["Léa Mercier", "lea.mercier@exemple.fr", "P-201"] },
-    { room: "OSA2A", category: "RESEAU", subIssue: "wifi_coupé", description: "Plus personne n'a de Wi-Fi dans l'open space depuis midi.", criticality: "GENANT", status: "EN_COURS", created: daysAgo(1, 12), assigned: 1, comments: [[1, "Redémarrage de la borne en cours, intervention à 14h.", false]] },
-    { room: "BASTIDE", eq: "VIDEOPROJ-BASTIDE-01", category: "VIDEOPROJ", subIssue: "pas_de_signal", description: "Aucune image en sortie du vidéoprojecteur pour la formation de 14h.", criticality: "BLOQUANT", status: "EN_COURS", created: daysAgo(1, 9), assigned: 0, reporter: ["Formateur : H. Diallo", "h.diallo@exemple.fr"], comments: [[0, "Câble HDMI remplacé à 13h40, on surveille.", true]] },
+    { room: "OSA2A", category: "RESEAU", subIssue: "wifi_coupé", description: "Plus personne n'a de Wi-Fi dans l'open space depuis midi.", criticality: "GENANT", status: "EN_COURS", created: daysAgo(1, 12), assigned: 1, timeSpent: 45, comments: [[1, "Redémarrage de la borne en cours, intervention à 14h.", false]] },
+    { room: "BASTIDE", eq: "VIDEOPROJ-BASTIDE-01", category: "VIDEOPROJ", subIssue: "pas_de_signal", description: "Aucune image en sortie du vidéoprojecteur pour la formation de 14h.", criticality: "BLOQUANT", status: "EN_COURS", created: daysAgo(1, 9), assigned: 0, escalated: true, reporter: ["Formateur : H. Diallo", "h.diallo@exemple.fr"], comments: [[0, "Câble HDMI remplacé à 13h40, on surveille.", true]] },
     { room: "ATELIER", eq: "IMPR-ATELIER-01", category: "IMPRIMANTE", subIssue: "bourrage", description: "Bourrage papier récurrent au niveau de la buse.", criticality: "GENANT", status: "NOUVEAU", created: daysAgo(2, 15) },
     { room: "VEGA", eq: "ECR-VEGA-01", category: "ECRAN", subIssue: "taches_pixels", description: "Une trace sombre en bas de l'écran mural, visible sur fond clair.", criticality: "MINEUR", status: "NOUVEAU", created: daysAgo(3, 11) },
     { room: "ACCUEIL", eq: "TEL-ACCUEIL-01", category: "TELEPHONIE", subIssue: "pas_de_tonalite", description: "Le téléphone de l'accueil n'a plus de tonalité.", criticality: "BLOQUANT", status: "EN_COURS", created: daysAgo(2, 10), assigned: 2, reporter: ["Anonyme", "", "P-001"] },
+
+    // ── Demande de service & attente déclarant (v3) ──
+    { room: "VEGA", category: "LOGICIEL", subIssue: "acces_refuse", description: "Besoin du logiciel de visio installé sur le PC de la salle Vega pour les réunions clients.", criticality: "MINEUR", type: "DEMANDE", status: "EN_COURS", tags: "installation,visio", created: daysAgo(2, 16), assigned: 2, timeSpent: 30 },
+    { room: "ORION", eq: "VIDEOPROJ-VEGA-01", category: "VIDEOPROJ", subIssue: "pas_de_signal", description: "Le vidéoprojecteur s'allume puis s'éteint au bout de 2 minutes.", criticality: "GENANT", status: "EN_ATTENTE", created: daysAgo(3, 10), assigned: 1, timeSpent: 60, comments: [[1, "Pouvez-vous préciser si le voyant de température s'allume ? On attend votre retour pour commander la pièce.", false]] },
 
     // ── Incidents de la semaine dernière ──
     { room: "OSA2A", eq: "PC-OSA2A-02", category: "ORDINATEUR", subIssue: "tres_lent", description: "Le poste 02 met 10 minutes à démarrer.", criticality: "GENANT", status: "RESOLU", created: daysAgo(8), resolveAfter: 20, closeAfter: 44, assigned: 1, reporter: ["Marc Le Goff", "m.legoff@exemple.fr", "P-202"], satisfaction: 1, comments: [[1, "SSD en fin de vie, remplacé. Poste comme neuf !", false]] },
@@ -150,13 +163,17 @@ async function main() {
   let seq = 0;
   for (const s of seeds) {
     seq++;
+    const prefix = s.type === "DEMANDE" ? "DEM" : s.type === "PROBLEME" ? "PB" : "INC";
     const resolvedAt = s.resolveAfter ? hoursLater(s.created, s.resolveAfter) : null;
     const closedAt = s.closeAfter ? hoursLater(s.created, s.closeAfter) : null;
+    const priority = PRIORITY_BY_CRIT[s.criticality] ?? "P3";
     const incident = await prisma.incident.create({
       data: {
-        ticketNumber: `INC-2026-${String(seq).padStart(4, "0")}`,
+        ticketNumber: `${prefix}-2026-${String(seq).padStart(4, "0")}`,
         token: token(),
+        type: s.type ?? "INCIDENT",
         status: s.status,
+        priority,
         criticality: s.criticality,
         category: s.category,
         subIssue: s.subIssue,
@@ -164,11 +181,16 @@ async function main() {
         reporterName: s.reporter?.[0] === "Anonyme" ? null : s.reporter?.[0] || null,
         reporterEmail: s.reporter?.[1] || null,
         workstationRef: s.reporter?.[2] || null,
+        tags: s.tags ?? "",
+        timeSpent: s.timeSpent ?? 0,
+        escalated: s.escalated ?? false,
         roomId: rooms[s.room].id,
         equipmentId: s.eq ? eq[s.eq] : null,
         assignedToId: s.assigned !== undefined ? admins[s.assigned].id : null,
         createdAt: s.created,
         updatedAt: closedAt ?? resolvedAt ?? s.created,
+        dueAt: hoursLater(s.created, SLA_BY_PRIO[priority] ?? 72),
+        firstResponseAt: s.assigned !== undefined ? hoursLater(s.created, 2) : null,
         resolvedAt,
         closedAt: s.status === "FERME" ? closedAt : null,
         satisfaction: s.satisfaction ?? null,
@@ -185,6 +207,26 @@ async function main() {
               })),
             }
           : undefined,
+        activity: {
+          create: [
+            {
+              action: "CREATED",
+              actorName: s.reporter?.[0] ?? "Anonyme",
+              details: `${prefix}-2026-${String(seq).padStart(4, "0")}`,
+              createdAt: s.created,
+            },
+            ...(s.assigned !== undefined
+              ? [
+                  {
+                    action: "ASSIGNED",
+                    actorName: "Système",
+                    details: admins[s.assigned].name,
+                    createdAt: hoursLater(s.created, 1),
+                  },
+                ]
+              : []),
+          ],
+        },
       },
     });
     console.log(`   ${incident.ticketNumber} — ${rooms[s.room].name} (${s.category})`);
@@ -198,6 +240,72 @@ async function main() {
   });
 
   console.log(`\n✅ ${seq} incidents de démonstration créés.`);
+
+  console.log("🌱 Base de connaissances…");
+  const kbArticles: {
+    slug: string;
+    title: string;
+    category: string;
+    keywords: string;
+    content: string;
+  }[] = [
+    {
+      slug: "ecran-noir-3-verifications",
+      title: "Écran noir : les 3 vérifications avant de signaler",
+      category: "ECRAN",
+      keywords: "écran, noir, hdmi, vga, alimentation",
+      content:
+        "Un écran noir n'est pas toujours une panne ! Avant de signaler, suivez ces 3 vérifications rapides.\n\n## 1. L'alimentation\nVérifiez que le câble d'alimentation de l'écran est bien branché des deux côtés, et que le voyant de l'écran est allumé.\n\n## 2. La source d'entrée\nAppuyez sur les boutons de l'écran et testez les sources : HDMI, VGA, DisplayPort. Un mauvais canal sélectionné est la cause n°1.\n\n## 3. Le câble vidéo\nVérifiez que le câble entre l'écran et l'ordinateur est fermement clipsé des deux côtés. Testez avec un autre câble si possible.\n\nSi rien ne fonctionne après ces vérifications : signalez le problème en précisant le numéro du poste.",
+    },
+    {
+      slug: "wifi-coupes-reseau",
+      title: "Wi-Fi coupé : les gestes qui sauvent",
+      category: "RESEAU",
+      keywords: "wifi, réseau, coupure, débit, borne",
+      content:
+        "- Désactivez puis réactivez le Wi-Fi de votre appareil.\n- Oubliez le réseau puis reconnectez-vous (mot de passe à saisir à nouveau).\n- Redémarrez votre appareil.\n- Testez si d'autres personnes autour de vous ont le même problème : si oui, c'est la borne — signalez-le tout de suite en précisant la salle.\n\n## En filaire\nVérifiez que le câble réseau est bien clipsé (petit clic) et essayez une autre prise murale si disponible.",
+    },
+    {
+      slug: "imprimante-ne-imprime-pas",
+      title: "L'imprimante n'imprime pas : check-list express",
+      category: "IMPRIMANTE",
+      keywords: "imprimante, bourrage, toner, file d'attente, spooler",
+      content:
+        "Avant de signaler, testez ces points :\n\n- Il y a du papier dans le bac, sans bourrage (ouvrez le capot et vérifiez).\n- L'imprimante est allumée, sans voyant d'erreur clignotant.\n- Votre document est bien dans la file d'attente : double-cliquez sur l'icône d'imprimante dans la barre des tâches.\n- Un ancien document bloqué peut suffire à bloquer toute la file : annulez les impressions en attente et relancez.\n\n## Toner\nSi les copies sortent pâles, le toner est probablement à remplacer — signalez-le en criticité « Mineur », l'équipe IT le planifiera.",
+    },
+    {
+      slug: "ordinateur-tres-lent",
+      title: "Ordinateur très lent : 3 minutes pour diagnostiquer",
+      category: "ORDINATEUR",
+      keywords: "lent, lenteur, redémarrage, disque, mémoire",
+      content:
+        "Un poste lent est souvent un poste qui n'a pas été redémarré depuis longtemps.\n\n## Le redémarrage complet\nÉteignez complètement l'ordinateur (menu Démarrer → Arrêter), attendez 10 secondes, puis redémarrez. Cela règle une lenteur sur deux.\n\n## Après le redémarrage\n- Notez combien de temps met le poste pour être utilisable.\n- Notez les applications lancées automatiquement au démarrage.\n\nSi le poste met plus de 5 minutes à démarrer, signalez-le en précisant le numéro du poste : le disque est peut-être en fin de vie.",
+    },
+    {
+      slug: "videoprojecteur-pas-de-signal",
+      title: "Vidéoprojecteur : pas d'image en réunion ?",
+      category: "VIDEOPROJ",
+      keywords: "vidéoprojecteur, hdmi, vga, signal, réunion",
+      content:
+        "Pas de panique, dans 8 cas sur 10 c'est un problème de sélection de source.\n\n- Vérifiez que le vidéoprojecteur est allumé (voyant vert, ventilateur audible).\n- Sur la télécommande, appuyez plusieurs fois sur « Source » ou « Input » jusqu'à trouver HDMI ou VGA selon votre câble.\n- Sur l'ordinateur, activez la sortie vidéo : touche Windows + P, puis choisissez « Dupliquer ».\n- Le cache d'objectif est bien retiré et la luminosité n'est pas au minimum.\n\nSi l'image reste absente après 2 minutes de manipulations : signalez-le avant le début de votre réunion, l'équipe IT peut souvent intervenir en quelques minutes.",
+    },
+    {
+      slug: "comment-signaler-un-probleme",
+      title: "Comment bien signaler un problème informatique",
+      category: "GENERAL",
+      keywords: "signalement, ticket, suivi, jeton, photo",
+      content:
+        "Le signalement se fait sans compte, en moins de 30 secondes.\n\n## Les étapes\n- Scannez le QR code de la salle (ou ouvrez la page d'accueil).\n- Choisissez votre salle, puis l'équipement concerné s'il y en a un.\n- Décrivez le problème avec les mots simples du quotidien.\n- Ajoutez éventuellement une photo : c'est souvent ce qui aide le plus.\n\n## Après le signalement\nVous recevez un numéro de ticket et un lien de suivi privé. Conservez-le : il vous permet de suivre l'avancement, d'ajouter des précisions et de donner votre avis une fois le problème résolu.\n\n## Vos données\nNom et email sont facultatifs. Les données sont supprimées automatiquement 12 mois après la fermeture du ticket.",
+    },
+  ];
+
+  for (const a of kbArticles) {
+    await prisma.knowledgeArticle.create({
+      data: { ...a, published: true, views: Math.floor(Math.random() * 40) },
+    });
+  }
+  console.log(`   ${kbArticles.length} articles publiés.`);
+
   console.log("👤 Comptes de démo :");
   console.log("   admin@exemple.fr / Admin!2026 (ADMIN)");
   console.log("   technicien@exemple.fr / Technicien!2026 (TECHNICIEN)");

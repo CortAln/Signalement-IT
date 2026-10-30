@@ -2,6 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { nextTicketNumber, newTrackingToken } from "@/lib/ticket";
 import { notifyNewIncident } from "@/lib/notify";
 import { requireApiAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
+import {
+  TICKET_TYPE_MAP,
+  priorityForCriticality,
+  slaDueDate,
+} from "@/lib/data";
 import { NextResponse } from "next/server";
 
 /**
@@ -21,6 +27,7 @@ export async function POST(req: Request) {
       reporterName,
       reporterEmail,
       workstationRef,
+      tags,
       photos = [],
     } = body ?? {};
 
@@ -48,10 +55,17 @@ export async function POST(req: Request) {
     const clean = (v: unknown) =>
       typeof v === "string" ? v.trim().slice(0, 200) : null;
 
+    const type = typeof body?.type === "string" && TICKET_TYPE_MAP[body.type] ? body.type : "INCIDENT";
+    const prefix = TICKET_TYPE_MAP[type].prefix;
+    const priority = priorityForCriticality(criticality);
+    const createdAt = new Date();
+
     const incident = await prisma.incident.create({
       data: {
-        ticketNumber: await nextTicketNumber(),
+        ticketNumber: await nextTicketNumber(prefix),
         token: newTrackingToken(),
+        type,
+        priority,
         criticality,
         category,
         subIssue: clean(subIssue),
@@ -59,6 +73,8 @@ export async function POST(req: Request) {
         reporterName: clean(reporterName) || null,
         reporterEmail: clean(reporterEmail) || null,
         workstationRef: clean(workstationRef) || null,
+        tags: typeof tags === "string" ? tags.trim().slice(0, 200) : "",
+        dueAt: slaDueDate(createdAt, priority),
         roomId: room.id,
         equipmentId: equipment?.id ?? null,
         photos: {
@@ -70,6 +86,8 @@ export async function POST(req: Request) {
       },
       include: { room: true, equipment: true, photos: true },
     });
+
+    await logActivity(incident.id, "CREATED", incident.reporterName || "Anonyme", incident.ticketNumber);
 
     // Notifications asynchrones : ne pas bloquer la réponse (< 2 s objectif)
     notifyNewIncident(incident).catch((err) => console.error("notification", err));
@@ -90,7 +108,8 @@ export async function POST(req: Request) {
 
 /**
  * GET /api/incidents — liste filtrée (réservée à la console admin).
- * Filtres : statut, catégorie, salle, criticité, recherche plein texte.
+ * Filtres : statut, catégorie, salle, criticité, type, priorité,
+ * assignation, retard SLA, recherche plein texte, tri, pagination.
  */
 export async function GET(req: Request) {
   const admin = await requireApiAdmin();
@@ -103,15 +122,29 @@ export async function GET(req: Request) {
   const category = url.searchParams.get("category") || undefined;
   const roomId = url.searchParams.get("roomId") || undefined;
   const criticality = url.searchParams.get("criticality") || undefined;
+  const type = url.searchParams.get("type") || undefined;
+  const priority = url.searchParams.get("priority") || undefined;
+  const assignedToId = url.searchParams.get("assignedToId") || undefined;
+  const overdue = url.searchParams.get("overdue");
   const q = url.searchParams.get("q") || undefined;
   const open = url.searchParams.get("open");
+  const page = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
+  const pageSize = Math.min(100, Math.max(10, Number(url.searchParams.get("pageSize") || "25") || 25));
 
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
   if (category) where.category = category;
   if (roomId) where.roomId = roomId;
   if (criticality) where.criticality = criticality;
-  if (open === "1") where.status = { in: ["NOUVEAU", "EN_COURS"] };
+  if (type) where.type = type;
+  if (priority) where.priority = priority;
+  if (assignedToId === "none") where.assignedToId = null;
+  else if (assignedToId) where.assignedToId = assignedToId;
+  if (open === "1") where.status = { in: ["NOUVEAU", "EN_COURS", "EN_ATTENTE"] };
+  if (overdue === "1") {
+    where.status = { in: ["NOUVEAU", "EN_COURS"] };
+    where.dueAt = { lt: new Date() };
+  }
   if (q) {
     where.OR = [
       { ticketNumber: { contains: q } },
@@ -119,14 +152,19 @@ export async function GET(req: Request) {
       { subIssue: { contains: q } },
       { reporterName: { contains: q } },
       { workstationRef: { contains: q } },
+      { tags: { contains: q } },
     ];
   }
 
-  const incidents = await prisma.incident.findMany({
-    where,
-    include: { room: true, equipment: true, assignedTo: true },
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
-  return NextResponse.json({ incidents });
+  const [incidents, total] = await Promise.all([
+    prisma.incident.findMany({
+      where,
+      include: { room: true, equipment: true, assignedTo: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.incident.count({ where }),
+  ]);
+  return NextResponse.json({ incidents, total, page, pageSize });
 }

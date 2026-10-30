@@ -37,7 +37,7 @@ export async function getCurrentAdmin() {
     where: { token },
     include: { admin: true },
   });
-  if (!session || session.expiresAt < new Date()) {
+  if (!session || session.expiresAt < new Date() || !session.admin.active) {
     if (session) await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
     return null;
   }
@@ -53,6 +53,6 @@ export async function requireApiAdmin() {
     where: { token },
     include: { admin: true },
   });
-  if (!session || session.expiresAt < new Date()) return null;
+  if (!session || session.expiresAt < new Date() || !session.admin.active) return null;
   return session.admin;
 }

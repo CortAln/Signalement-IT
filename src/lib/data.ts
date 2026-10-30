@@ -195,12 +195,76 @@ export const CRITICALITY_WEIGHT: Record<string, number> = Object.fromEntries(
 export const STATUSES = [
   { key: "NOUVEAU", label: "Nouveau", color: "bg-blue-100 text-blue-800" },
   { key: "EN_COURS", label: "En cours", color: "bg-amber-100 text-amber-800" },
+  { key: "EN_ATTENTE", label: "En attente du déclarant", color: "bg-purple-100 text-purple-800" },
   { key: "RESOLU", label: "Résolu", color: "bg-green-100 text-green-800" },
   { key: "FERME", label: "Fermé", color: "bg-gray-100 text-gray-700" },
 ] as const;
 
 export const STATUS_MAP: Record<string, (typeof STATUSES)[number]> =
   Object.fromEntries(STATUSES.map((s) => [s.key, s]));
+
+// ── Types de tickets (façon ITSM : incident / demande / problème) ──
+export const TICKET_TYPES = [
+  {
+    key: "INCIDENT",
+    label: "Incident",
+    icon: "⚡",
+    prefix: "INC",
+    hint: "Quelque chose ne fonctionne pas",
+  },
+  {
+    key: "DEMANDE",
+    label: "Demande de service",
+    icon: "📝",
+    prefix: "DEM",
+    hint: "Besoin d'un accès, d'un matériel, d'une installation…",
+  },
+  {
+    key: "PROBLEME",
+    label: "Problème",
+    icon: "🔎",
+    prefix: "PB",
+    hint: "Cause racine d'incidents répétés",
+  },
+] as const;
+
+export const TICKET_TYPE_MAP: Record<string, (typeof TICKET_TYPES)[number]> =
+  Object.fromEntries(TICKET_TYPES.map((t) => [t.key, t]));
+
+export function ticketTypeLabel(key: string): string {
+  return TICKET_TYPE_MAP[key]?.label ?? key;
+}
+
+export function ticketTypeIcon(key: string): string {
+  return TICKET_TYPE_MAP[key]?.icon ?? "🎫";
+}
+
+// ── Priorités (P1–P4, indépendantes de la criticité déclarée) ──────
+export const PRIORITIES = [
+  { key: "P1", label: "P1 — Critique", color: "bg-red-100 text-red-800" },
+  { key: "P2", label: "P2 — Haute", color: "bg-orange-100 text-orange-800" },
+  { key: "P3", label: "P3 — Moyenne", color: "bg-yellow-100 text-yellow-800" },
+  { key: "P4", label: "P4 — Basse", color: "bg-slate-100 text-slate-700" },
+] as const;
+
+export const PRIORITY_MAP: Record<string, (typeof PRIORITIES)[number]> =
+  Object.fromEntries(PRIORITIES.map((p) => [p.key, p]));
+
+export function priorityLabel(key: string): string {
+  return PRIORITY_MAP[key]?.label ?? key;
+}
+
+/** Priorité initiale déduite de la criticité ressentie par le déclarant. */
+export function priorityForCriticality(criticality: string): string {
+  switch (criticality) {
+    case "BLOQUANT":
+      return "P1";
+    case "GENANT":
+      return "P2";
+    default:
+      return "P3";
+  }
+}
 
 export function statusLabel(key: string): string {
   return STATUS_MAP[key]?.label ?? key;
@@ -236,6 +300,8 @@ export function friendlyMessage(status: string): string {
       return "Nous avons bien reçu votre signalement. L'équipe IT vient d'être prévenue et va le prendre en charge.";
     case "EN_COURS":
       return "Un technicien est sur le problème. Vous pouvez suivre l'avancement sur cette page.";
+    case "EN_ATTENTE":
+      return "L'équipe IT attend un élément de votre part (précision, test, disponibilité…). Répondez via le formulaire ci-dessous pour relancer le traitement.";
     case "RESOLU":
       return "Le problème a été résolu ! Pensez à vérifier que tout fonctionne de votre côté.";
     case "FERME":
@@ -254,12 +320,35 @@ export const SLA_HOURS: Record<string, number> = {
   MINEUR: 168, // 1 semaine
 };
 
+// SLA par priorité (v3) : c'est la source de vérité pour l'échéance
+// dueAt posée à la création et recalculée à chaque changement de priorité.
+export const SLA_HOURS_BY_PRIORITY: Record<string, number> = {
+  P1: 8,
+  P2: 24,
+  P3: 72,
+  P4: 168,
+};
+
+/** Échéance SLA d'un ticket en fonction de sa priorité (null si inconnue). */
+export function slaDueDate(createdAt: Date, priority: string): Date | null {
+  const hours = SLA_HOURS_BY_PRIORITY[priority];
+  if (!hours) return null;
+  return new Date(createdAt.getTime() + hours * 3600 * 1000);
+}
+
+const OPEN_STATUSES = ["NOUVEAU", "EN_COURS"];
+const DONE_STATUSES = ["RESOLU", "FERME"];
+
 export function isOverdue(incident: {
   status: string;
   criticality: string;
   createdAt: Date;
+  dueAt?: Date | null;
 }): boolean {
-  if (incident.status === "RESOLU" || incident.status === "FERME") return false;
+  if (DONE_STATUSES.includes(incident.status)) return false;
+  // En attente du déclarant : le chronomètre SLA est suspendu.
+  if (incident.status === "EN_ATTENTE") return false;
+  if (incident.dueAt) return Date.now() > incident.dueAt.getTime();
   const hours = SLA_HOURS[incident.criticality] ?? SLA_HOURS.MINEUR;
   return Date.now() - incident.createdAt.getTime() > hours * 3600 * 1000;
 }

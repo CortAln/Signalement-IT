@@ -6,12 +6,15 @@ export const dynamic = "force-dynamic";
 
 /**
  * Accueil — accès par URL courte (QR "générique" ou saisie manuelle).
- * L'utilisateur choisit sa salle, puis lance l'assistant.
+ * Trois entrées : signaler, suivre un ticket, base de connaissances.
  */
 export default async function HomePage() {
-  const [rooms, equipment] = await Promise.all([
+  const [rooms, equipment, kbCount] = await Promise.all([
     prisma.room.findMany({ orderBy: { name: "asc" } }),
     prisma.equipment.findMany({ orderBy: { name: "asc" } }),
+    prisma.knowledgeArticle
+      .count({ where: { published: true } })
+      .catch(() => 0),
   ]);
 
   return (
@@ -39,15 +42,33 @@ export default async function HomePage() {
         />
       </section>
 
-      <section aria-labelledby="titre-suivi" className="mt-8 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 id="titre-suivi" className="font-semibold">
-          Déjà signalé ? Suivez votre ticket
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Utilisez le lien ou le QR code reçu après votre signalement —{" "}
-          aucun compte n&apos;est nécessaire.
-        </p>
-      </section>
+      <nav
+        aria-label="Autres actions"
+        className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2"
+      >
+        <Link
+          href="/suivi"
+          className="block rounded-2xl bg-white p-5 shadow-sm hover:shadow-md"
+        >
+          <p className="text-2xl" aria-hidden="true">🎫</p>
+          <h2 className="mt-1 font-semibold">Suivre un ticket</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Déjà signalé ? Suivez l&apos;avancement avec votre lien de suivi.
+          </p>
+        </Link>
+        <Link
+          href="/kb"
+          className="block rounded-2xl bg-white p-5 shadow-sm hover:shadow-md"
+        >
+          <p className="text-2xl" aria-hidden="true">💡</p>
+          <h2 className="mt-1 font-semibold">Base de connaissances</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {kbCount > 0
+              ? `${kbCount} article${kbCount > 1 ? "s" : ""} pour se dépanner soi-même.`
+              : "Des solutions simples pour se dépanner soi-même."}
+          </p>
+        </Link>
+      </nav>
 
       <footer className="mt-12 text-center text-xs text-slate-500">
         <p>

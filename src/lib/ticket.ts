@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 
 /**
- * Génère un numéro de ticket unique au format INC-<année>-<séquence>.
+ * Génère un numéro de ticket unique au format <PFX>-<année>-<séquence>.
+ * Le préfixe dépend du type : INC (incident), DEM (demande), PB (problème).
  * Le compteur est atomique : deux créations simultanées ne peuvent pas
  * produire le même numéro.
  */
-export async function nextTicketNumber(): Promise<string> {
+export async function nextTicketNumber(prefix = "INC"): Promise<string> {
   const year = new Date().getFullYear();
   const seq = await prisma.$transaction(async (tx) => {
     const counter = await tx.ticketCounter.upsert({
@@ -16,7 +17,7 @@ export async function nextTicketNumber(): Promise<string> {
     });
     return counter.seq;
   });
-  return `INC-${year}-${String(seq).padStart(4, "0")}`;
+  return `${prefix}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
 /**

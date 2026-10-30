@@ -1,17 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { requireApiAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 import { NextResponse } from "next/server";
 
 /**
- * POST /api/comments — ajout d'un commentaire.
+ * POST /api/comments — ajout d'un commentaire agent.
  * - admin connecté : commentaire support (interne ou public)
- * - sans compte : impossible (le suivi public est en lecture seule pour
- *   éviter le spam ; l'utilisateur crée un nouveau signalement si besoin)
+ * - profil LECTEUR : refusé
  */
 export async function POST(req: Request) {
   const admin = await requireApiAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+  if (admin.role === "LECTEUR") {
+    return NextResponse.json({ error: "Profil en lecture seule" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -35,5 +38,20 @@ export async function POST(req: Request) {
       internal: Boolean(internal),
     },
   });
+
+  // Premier commentaire public du support = première réponse (KPI réactivité)
+  if (!internal && !incident.firstResponseAt) {
+    await prisma.incident
+      .update({ where: { id: incidentId }, data: { firstResponseAt: new Date() } })
+      .catch(() => {});
+  }
+
+  await logActivity(
+    incidentId,
+    "COMMENT",
+    admin.name,
+    internal ? "Commentaire interne" : "Commentaire public"
+  );
+
   return NextResponse.json({ comment });
 }

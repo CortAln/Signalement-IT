@@ -11,6 +11,7 @@ import {
   subIssueLabel,
 } from "@/lib/data";
 import FeedbackButtons from "@/components/FeedbackButtons";
+import PublicCommentForm from "@/components/PublicCommentForm";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -51,8 +52,27 @@ export default async function TrackingPage({
 
   if (!incident) notFound();
 
-  const timelineIndex = TIMELINE.indexOf(incident.status);
+  // EN_ATTENTE est affiché sur l'étape « En cours » de la frise,
+  // avec un bandeau dédié.
+  const timelineIndex =
+    incident.status === "EN_ATTENTE"
+      ? 1
+      : TIMELINE.indexOf(incident.status);
   const subLabel = subIssueLabel(incident.category, incident.subIssue);
+
+  const relatedKb = await prisma.knowledgeArticle
+    .findMany({
+      where: { published: true, category: incident.category },
+      take: 2,
+      orderBy: { updatedAt: "desc" },
+      select: { slug: true, title: true },
+    })
+    .catch(() => []);
+
+  const canReply =
+    incident.status === "NOUVEAU" ||
+    incident.status === "EN_COURS" ||
+    incident.status === "EN_ATTENTE";
 
   return (
     <main id="contenu" className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8">
@@ -68,7 +88,11 @@ export default async function TrackingPage({
         </p>
       </header>
 
-      <p className="mt-6 rounded-2xl bg-blue-50 p-4 text-center text-slate-700">
+      <p
+        className={`mt-6 rounded-2xl p-4 text-center text-slate-700 ${
+          incident.status === "EN_ATTENTE" ? "bg-purple-50" : "bg-blue-50"
+        }`}
+      >
         {friendlyMessage(incident.status)}
       </p>
 
@@ -139,15 +163,26 @@ export default async function TrackingPage({
             </div>
           )}
         </dl>
+
+        {incident.resolutionNote && (
+          <div className="mt-4 rounded-xl bg-green-50 p-4 ring-1 ring-green-200">
+            <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+              Ce qu&apos;a fait l&apos;équipe IT
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm text-green-900">
+              {incident.resolutionNote}
+            </p>
+          </div>
+        )}
       </section>
 
-      {/* Commentaires du support */}
+      {/* Conversation (support + messages du déclarant) */}
       <section
         aria-labelledby="titre-commentaires"
         className="mt-6 rounded-2xl bg-white p-5 shadow-sm"
       >
         <h2 id="titre-commentaires" className="mb-3 font-semibold">
-          Messages de l&apos;équipe IT
+          Conversation
         </h2>
         {incident.comments.length === 0 ? (
           <p className="text-sm text-slate-500">
@@ -156,9 +191,14 @@ export default async function TrackingPage({
         ) : (
           <ul className="grid grid-cols-1 gap-3">
             {incident.comments.map((c) => (
-              <li key={c.id} className="rounded-xl bg-slate-100 p-3 text-sm">
+              <li
+                key={c.id}
+                className={`rounded-xl p-3 text-sm ${
+                  c.authorType === "UTILISATEUR" ? "bg-blue-50" : "bg-slate-100"
+                }`}
+              >
                 <p className="font-semibold">
-                  {c.authorName}{" "}
+                  {c.authorType === "UTILISATEUR" ? "Vous" : c.authorName}{" "}
                   <span className="font-normal text-slate-500">
                     · {formatDate(c.createdAt)}
                   </span>
@@ -170,7 +210,40 @@ export default async function TrackingPage({
         )}
       </section>
 
-      {/* Avis du déclarant (v2.1) — visible dès que le ticket est résolu */}
+      {/* Réponse du déclarant */}
+      {canReply && (
+        <section
+          aria-labelledby="titre-repondre"
+          className="mt-6 rounded-2xl bg-white p-5 shadow-sm"
+        >
+          <PublicCommentForm token={incident.token} reporterName={incident.reporterName} />
+        </section>
+      )}
+
+      {/* Aide autonome */}
+      {relatedKb.length > 0 && incident.status !== "FERME" && (
+        <section aria-labelledby="titre-kb" className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
+          <h2 id="titre-kb" className="mb-2 font-semibold">
+            💡 Pour aller plus loin
+          </h2>
+          <ul className="grid grid-cols-1 gap-1 text-sm">
+            {relatedKb.map((a) => (
+              <li key={a.slug}>
+                <Link href={`/kb/${a.slug}`} className="text-primary underline">
+                  {a.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">
+            <Link href="/kb" className="underline">
+              Voir toute la base de connaissances
+            </Link>
+          </p>
+        </section>
+      )}
+
+      {/* Avis du déclarant — visible dès que le ticket est résolu */}
       {(incident.status === "RESOLU" || incident.status === "FERME") && (
         <FeedbackButtons token={incident.token} satisfaction={incident.satisfaction} />
       )}

@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   }
 
   const admin = await prisma.adminUser.findUnique({ where: { email: String(email).toLowerCase() } });
-  if (!admin || !(await bcrypt.compare(String(password), admin.passwordHash))) {
+  if (!admin || !admin.active || !(await bcrypt.compare(String(password), admin.passwordHash))) {
     return NextResponse.json({ error: "Identifiants incorrects" }, { status: 401 });
   }
 

@@ -17,7 +17,7 @@ export default async function DashboardLayout({
 
   return (
     <>
-      <AdminNav adminName={admin.name} />
+      <AdminNav adminName={admin.name} adminRole={admin.role} />
       <main id="contenu" className="mx-auto max-w-6xl px-4 py-6">
         {children}
       </main>

@@ -40,15 +40,16 @@ model Equipment {
 // ─── Administration (accès protégé) ────────────────────────────────
 
 model AdminUser {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String     @id @default(cuid())
+  email        String     @unique
   name         String
   passwordHash String
-  role         String    @default("TECHNICIEN") // ADMIN | TECHNICIEN
-  createdAt    DateTime  @default(now())
+  role         String     @default("TECHNICIEN") // ADMIN | TECHNICIEN | LECTEUR
+  active       Boolean    @default(true) // désactivation sans suppression (historique conservé)
+  createdAt    DateTime   @default(now())
   sessions     Session[]
   assigned     Incident[] @relation("AssignedTo")
-  comments     Comment[]  @relation("AdminComments")
+  comments      Comment[]  @relation("AdminComments")
 }
 
 model Session {
@@ -60,20 +61,23 @@ model Session {
   createdAt DateTime  @default(now())
 }
 
-// ─── Incidents ─────────────────────────────────────────────────────
+// ─── Tickets (incidents, demandes, problèmes) ────────────────────────
 
 model Incident {
   id             String     @id @default(cuid())
-  ticketNumber   String     @unique // INC-2026-0142
+  ticketNumber   String     @unique // INC-2026-0142 | DEM-2026-0003 | PB-2026-0001
   token          String     @unique // jeton de suivi public /t/<token>
-  status         String     @default("NOUVEAU") // NOUVEAU | EN_COURS | RESOLU | FERME
-  criticality    String // BLOQUANT | GENANT | MINEUR
+  type           String     @default("INCIDENT") // INCIDENT | DEMANDE | PROBLEME
+  status         String     @default("NOUVEAU") // NOUVEAU | EN_COURS | EN_ATTENTE | RESOLU | FERME
+  priority       String     @default("P3") // P1 | P2 | P3 | P4
+  criticality    String // BLOQUANT | GENANT | MINEUR (ressenti du déclarant)
   category       String // clé de catégorie (voir src/lib/data.ts)
   subIssue       String? // sous-question sélectionnée
   description    String?
   reporterName   String? // optionnel (signalement anonyme possible)
   reporterEmail  String?
   workstationRef String? // numéro de poste / badge, optionnel
+  tags           String     @default("") // liste séparée par des virgules, ex. "wifi,urgent"
   roomId         String
   room           Room       @relation(fields: [roomId], references: [id])
   equipmentId    String?
@@ -82,12 +86,18 @@ model Incident {
   assignedTo     AdminUser?  @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   photos         Photo[]
   comments       Comment[]
+  activity       ActivityLog[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+  dueAt          DateTime? // échéance cible (SLA) calculée à la création / au changement de priorité
+  firstResponseAt DateTime? // première action du support (statut ou commentaire public)
+  timeSpent      Int        @default(0) // temps cumulé passé, en minutes
+  escalated      Boolean    @default(false) // escalade manuelle (dépassement SLA, mécontentement…)
   resolvedAt     DateTime?
   closedAt       DateTime?
+  resolutionNote String? // note de résolution visible par le déclarant
 
-  // Satisfaction du déclarant (v2.1) : +1 (👍 résolu pour moi) | -1 (👎 toujours gênant)
+  // Satisfaction du déclarant : +1 (👍 résolu pour moi) | -1 (👎 toujours gênant)
   satisfaction   Int?
   feedbackAt     DateTime?
 }
@@ -114,7 +124,34 @@ model Comment {
   createdAt  DateTime   @default(now())
 }
 
-// Compteur de tickets par année (INC-<année>-<séquence>)
+// ─── Journal d'activité (audit trail, façon ServiceNow) ─────────────
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  action     String // CREATED | ASSIGNED | STATUS | PRIORITY | TYPE | TAGS | COMMENT | TIME | ESCALATED | REOPENED | FEEDBACK | DELETED
+  actorName  String // nom de l'agent, ou "Déclarant", ou "Système"
+  details    String? // texte libre : "EN_COURS → RESOLU", "45 min", …
+  createdAt  DateTime @default(now())
+}
+
+// ─── Base de connaissances (FAQ / solutions, façon Zendesk) ─────────
+
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  slug      String   @unique // cle-url, ex. "ecran-noir-que-faire"
+  title     String
+  category  String // clé de catégorie (voir src/lib/data.ts) ou "GENERAL"
+  keywords  String   @default("") // pour la recherche
+  content   String // texte simple : paragraphes, "- " listes, "## " titres
+  published Boolean  @default(false)
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Compteur de tickets par année (INC|DEM|PB-<année>-<séquence>)
 model TicketCounter {
   year Int @id
   seq  Int @default(0)

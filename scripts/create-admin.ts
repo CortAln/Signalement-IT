@@ -1,16 +1,18 @@
 // Création d'un compte console pour la production.
-// Usage :  npx tsx scripts/create-admin.ts <email> <nom> <motDePasse> [ADMIN|TECHNICIEN]
+// Usage :  npx tsx scripts/create-admin.ts <email> <nom> <motDePasse> [ADMIN|TECHNICIEN|LECTEUR]
 // Exemple : npx tsx scripts/create-admin.ts camille@monentreprise.fr "Camille Fabre" "MotDePasseFort!42" ADMIN
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const ROLES = ["ADMIN", "TECHNICIEN", "LECTEUR"];
+
 async function main() {
   const [email, name, password, roleArg] = process.argv.slice(2);
   if (!email || !name || !password) {
     console.error(
-      "Usage : npx tsx scripts/create-admin.ts <email> <nom> <motDePasse> [ADMIN|TECHNICIEN]"
+      "Usage : npx tsx scripts/create-admin.ts <email> <nom> <motDePasse> [ADMIN|TECHNICIEN|LECTEUR]"
     );
     process.exit(1);
   }
@@ -18,7 +20,7 @@ async function main() {
     console.error("❌ Le mot de passe doit faire au moins 10 caractères.");
     process.exit(1);
   }
-  const role = roleArg === "TECHNICIEN" ? "TECHNICIEN" : "ADMIN";
+  const role = ROLES.includes(roleArg) ? roleArg : "ADMIN";
 
   const existing = await prisma.adminUser.findUnique({
     where: { email: email.toLowerCase() },

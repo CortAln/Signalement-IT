@@ -1,8 +1,8 @@
 {
   "name": "signalement-it",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Mini-application web de signalement d'incidents IT — mobile-first, sans authentification obligatoire",
+  "description": "Plateforme de ticketing IT (helpdesk à la ServiceNow/Zendesk) — portail public, console agent, base de connaissances, SLA et statistiques",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
   const where: Record<string, unknown> = {
     roomId,
-    status: { in: ["NOUVEAU", "EN_COURS"] },
+    status: { in: ["NOUVEAU", "EN_COURS", "EN_ATTENTE"] },
   };
   if (equipmentId) where.equipmentId = equipmentId;
 
