@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CATEGORIES } from "@/lib/data";
 import Link from "next/link";
-import { togglePublish } from "../actions";
+import { togglePublish } from "./actions";
 
 export const metadata = { title: "Base de connaissances — Console IT" };
 
